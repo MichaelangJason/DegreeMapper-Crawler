@@ -53,6 +53,12 @@ def split_text(texts: Dict[str, str], chunk_size: int = 8192) -> List[str]:
     # Add the last chunk if it's not empty
     if current_chunk:
         chunks.append(current_chunk)
+    
+    print(len(chunks))
+    print([len(chunk.values()) for chunk in chunks])
+    for chunk in chunks:
+        print(chunk.keys())
+        print("-"*100)
 
     # convert to list of strings as json
     chunks_string = [

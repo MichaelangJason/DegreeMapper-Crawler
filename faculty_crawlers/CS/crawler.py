@@ -6,8 +6,6 @@ from urllib.parse import urljoin, urlparse
 from typing import Set, Dict, List, Mapping
 from tqdm import tqdm
 from pipelines.text_processing import clean_text
-# from langid import classify
-from pipelines.embedding_encoder import split_text
 import json
 from database.chroma import client
 from database.enums import ChromaCollection
@@ -33,45 +31,57 @@ class CSCrawler(FacultyCrawler):
     async def crawl(self) -> None:
         # get all urls from the base url
         tqdm.write('Getting all urls from the base url...')
-        urls = await self.get_all_urls()
+        # urls = await self.get_all_urls()
+        urls = ['/docs/tutorials/linux/']
         tqdm.write('Done getting all urls from the base url!')
 
+        # for now we just delete it before crawling
         client.delete_collection(ChromaCollection.Faculty)
+
         with tqdm(total=len(urls), desc='Fetching content for each url...') as pbar:
             # fetch page content for last page and display it
             for url in urls:
                 pbar.set_description(f"Fetching content for {url}")
                 content = await self.fetch_content(url)
-
-                titles = ",".join(list(content.keys())) # a metadata for the content
+                # print(content)
+                common_tag = list(content.keys())[0]
                 faculty = self.faculty_name # a metadata for the content
-                chunks = split_text(content)
+
+                # chunks, filter out empty strings 
+                documents: List[str] = []
+                tags: List[str] = []
+                for i, (title, value) in enumerate(content.items()):
+                    if value == '':
+                        continue
+                    tags.append((common_tag + ',' if i != 0 else '') + title)
+                    documents.append(json.dumps({ "title": title, "content": value }))
 
                 metadata: List[Mapping[str, str | int | float | bool]] = [
                     {
                         "faculty": faculty,
-                        "titles": titles,
+                        "tags": tag,
                         "url": urljoin(f'https://{self.base_url}', url)
                     }
-                    for _ in chunks
+                    for tag in tags
                 ]
 
                 ids = [
                     f"{faculty}-{url}-{i}"
-                    for i, _ in enumerate(chunks)
+                    for i in range(len(documents))
                 ]
+
                 try:
                     client.add_documents(
                         collection_name=ChromaCollection.Faculty,
                         ids=ids,
                         metadata=metadata,
-                        documents=chunks
+                        documents=documents
                     )
                 except Exception as e:
                     print(e)
                     print("metadata: ", metadata)
                     print("url: ", url)
-                    print("chunks: ", chunks)
+                    print("documents: ", documents)
                     print("contents", json.dumps(content))
                     continue
                 pbar.update(1)
@@ -102,7 +112,10 @@ class CSCrawler(FacultyCrawler):
                         
                         # get all elements between this header and the next one
                         current = header.next_sibling
-                        while current and (not isinstance(current, Tag) or current.name not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                        while current and (
+                            not isinstance(current, Tag) 
+                            or current.name not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+
                             if current is None:
                                 break
                             if isinstance(current, (Tag, str)) and str(current).strip():

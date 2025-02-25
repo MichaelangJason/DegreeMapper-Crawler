@@ -64,7 +64,8 @@ class ChromaClient:
         # check connection
         self.client.heartbeat()
 
-        collection = self.client.get_collection(collection_name.value, embedding_function=BGEEmbeddingFunction())
+        collection = self.client.get_collection(collection_name.value, 
+                                                embedding_function=BGEEmbeddingFunction())
         if collection is None:
             raise ValueError(f"Collection {collection_name} not found")
         
