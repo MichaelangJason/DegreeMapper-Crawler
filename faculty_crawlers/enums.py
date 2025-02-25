@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class Faculty(Enum):
-    CS = "CS"
+    CS = "Computer Science"
     # ECON = "ECON"
     # MATH = "MATH"
     # STAT = "STAT"

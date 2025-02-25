@@ -2,6 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Set
 
 class FacultyCrawler(ABC):
+
+    @property
+    @abstractmethod
+    def faculty_name(self) -> str:
+        raise NotImplementedError("faculty_name must be implemented")
+
     @property
     @abstractmethod
     def base_url(self) -> str:

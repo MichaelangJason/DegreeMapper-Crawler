@@ -1,13 +1,16 @@
 from faculty_crawlers.base import FacultyCrawler
+from faculty_crawlers.enums import Faculty
 import httpx
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urljoin, urlparse
-from typing import Set, Dict
+from typing import Set, Dict, List, Mapping
 from tqdm import tqdm
-from pipelines.text_cleaning import clean_text
-from langdetect import detect
-
-# import asyncio
+from pipelines.text_processing import clean_text
+# from langid import classify
+from pipelines.embedding_encoder import split_text
+import json
+from database.chroma import client
+from database.enums import ChromaCollection
 
 class CSCrawler(FacultyCrawler):
     """
@@ -20,6 +23,10 @@ class CSCrawler(FacultyCrawler):
         self.is_header_crawled = False
 
     @property
+    def faculty_name(self) -> str:
+        return Faculty.CS.value
+
+    @property
     def base_url(self) -> str:
         return 'www.cs.mcgill.ca'
 
@@ -29,10 +36,46 @@ class CSCrawler(FacultyCrawler):
         urls = await self.get_all_urls()
         tqdm.write('Done getting all urls from the base url!')
 
-        # fetch page content for last page and display it
-        for url in tqdm(urls, desc='Fetching content for each url...'):
-            content = await self.fetch_content(url)
-    
+        client.delete_collection(ChromaCollection.Faculty)
+        with tqdm(total=len(urls), desc='Fetching content for each url...') as pbar:
+            # fetch page content for last page and display it
+            for url in urls:
+                pbar.set_description(f"Fetching content for {url}")
+                content = await self.fetch_content(url)
+
+                titles = ",".join(list(content.keys())) # a metadata for the content
+                faculty = self.faculty_name # a metadata for the content
+                chunks = split_text(content)
+
+                metadata: List[Mapping[str, str | int | float | bool]] = [
+                    {
+                        "faculty": faculty,
+                        "titles": titles,
+                        "url": urljoin(f'https://{self.base_url}', url)
+                    }
+                    for _ in chunks
+                ]
+
+                ids = [
+                    f"{faculty}-{url}-{i}"
+                    for i, _ in enumerate(chunks)
+                ]
+                try:
+                    client.add_documents(
+                        collection_name=ChromaCollection.Faculty,
+                        ids=ids,
+                        metadata=metadata,
+                        documents=chunks
+                    )
+                except Exception as e:
+                    print(e)
+                    print("metadata: ", metadata)
+                    print("url: ", url)
+                    print("chunks: ", chunks)
+                    print("contents", json.dumps(content))
+                    continue
+                pbar.update(1)
+                
     async def fetch_content(self, endpoint: str) -> Dict[str, str]:
         async with httpx.AsyncClient() as client:
             response = await client.get(urljoin(f'https://{self.base_url}', endpoint))
@@ -41,9 +84,12 @@ class CSCrawler(FacultyCrawler):
             main_content = soup.find_all('div', class_='panel')
 
             if not main_content:
+                print(f"No main content found for {endpoint}")
                 return {}
             
             content_dict: Dict[str, str] = {}
+            # print(main_content)
+
             for panel in main_content:
                 # dictionary to store title-content pairs
                 if isinstance(panel, Tag):
@@ -62,16 +108,26 @@ class CSCrawler(FacultyCrawler):
                             if isinstance(current, (Tag, str)) and str(current).strip():
                                 content.append(clean_text(current.get_text().strip() if isinstance(current, Tag) else str(current).strip()))
                             current = current.next_sibling
+
+                        # print(f"title: {title}")
+                        # print(f"content: {content}")
                         
                         if title:  # only add if title is not empty
-                            if detect(title) != 'en':
-                                continue
+                            # if classify(title)[0] != 'en':
+                            #     print(f"title: {title} is not in english, its in {classify(title)}")
+                                # continue
                             if content_dict.get(title):
                                 content_dict[title] += '\n' + '\n'.join(filter(None, content))
                             else:
                                 content_dict[title] = '\n'.join(filter(None, content))
-            
+            # print(f"content_dict: {content_dict}")
         return content_dict
+
+    def flatten_content(self, content_dict: Dict[str, str]) -> str:
+        flattened_content = []
+        for title, content in content_dict.items():
+            flattened_content.append(f'{title}\n{content}')
+        return '\n'.join(flattened_content)
 
     async def get_all_urls_from_url(self, target_url: str) -> Set[str]:
         if not target_url.endswith('/'):
@@ -116,17 +172,17 @@ class CSCrawler(FacultyCrawler):
         self.all_urls.update(urls)
         visited_endpoints: Set[str] = set()
 
-        # while urls:
-        #     endpoint = urls.pop()
-        #     if endpoint in visited_endpoints:
-        #         continue
-        #     visited_endpoints.add(endpoint)
-        #     target_url = urljoin(base_url, endpoint)
-        #     # print(target_url)
-        #     res = await self.get_all_urls_from_url(target_url)
+        while urls:
+            endpoint = urls.pop()
+            if endpoint in visited_endpoints:
+                continue
+            visited_endpoints.add(endpoint)
+            target_url = urljoin(base_url, endpoint)
+            # print(target_url)
+            res = await self.get_all_urls_from_url(target_url)
 
-        #     urls.update(res)
-        #     self.all_urls.update(res)
+            urls.update(res)
+            self.all_urls.update(res)
 
         return self.all_urls
 
