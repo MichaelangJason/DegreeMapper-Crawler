@@ -3,10 +3,13 @@ from typing import List, Dict
 from torch import Tensor
 from torch.cuda import is_available
 import json
+
 model = SentenceTransformer(
     'BAAI/bge-m3',
     device='cuda' if is_available() else 'cpu'
 )
+
+print("Initialized BGE model with device: ", model.device)
 
 def encode_text(text: List[str]) -> Tensor:
     return model.encode(

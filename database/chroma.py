@@ -3,7 +3,7 @@ from chromadb.api.types import Embeddable, QueryResult, IncludeEnum, OneOrMany, 
 from pipelines.embedding_encoder import encode_text
 from typing import List, Mapping
 from database.enums import ChromaCollection
-
+from tqdm import tqdm
 
 class BGEEmbeddingFunction(EmbeddingFunction[Embeddable]):
     def __call__(self, text: List[str]) -> Embeddings: # type: ignore
@@ -11,7 +11,7 @@ class BGEEmbeddingFunction(EmbeddingFunction[Embeddable]):
 
 class ChromaClient:
     def __init__(self) -> None:
-        self.client = HttpClient(host='localhost', port=8000)
+        self.client = HttpClient(host='10.0.1.2', port=8000)
         self.client.heartbeat()
 
     def get_collection(self, name: ChromaCollection) -> Collection:
@@ -29,7 +29,7 @@ class ChromaClient:
                 # refer to https://docs.trychroma.com/docs/collections/configure
                 metadata={
                     "hnsw:space": "ip",
-                    "hnws:search_ef": 100,
+                    "hnsw:search_ef": 100,
                     "hnsw:construction_ef": 100,
                 }
             )
@@ -44,18 +44,36 @@ class ChromaClient:
                       collection_name: ChromaCollection, 
                       documents: List[str],
                       metadata: List[Mapping[str, str | int | float | bool]],
-                      ids: OneOrMany[ID]
+                      ids: OneOrMany[ID],
+                      batch_size: int = 1 # 1 is optimal for now
                     ) -> None:
         
         collection = self.get_collection(collection_name)
-
         self.client.heartbeat()
-        collection.add(
-            ids=ids,
-            documents=documents,
-            embeddings=BGEEmbeddingFunction()(documents),
-            metadatas=metadata
-        )
+        
+        # process in batches if the input is large
+        if isinstance(ids, list) and len(ids) > batch_size:
+            for i in tqdm(range(0, len(ids), batch_size), 
+                            desc='Adding documents to Chroma...', 
+                            unit='batch', 
+                            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]', 
+                            leave=False):
+
+                batch_ids = ids[i:i+batch_size]
+                batch_documents = documents[i:i+batch_size]
+                batch_metadata = metadata[i:i+batch_size]
+                
+                collection.add(
+                    ids=batch_ids,
+                    documents=batch_documents,
+                    metadatas=batch_metadata
+                )
+        else:
+            collection.add(
+                ids=ids,
+                documents=documents,
+                metadatas=metadata
+            )
 
     def query(self, 
               collection_name: ChromaCollection, 

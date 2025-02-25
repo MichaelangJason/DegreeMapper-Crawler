@@ -1,4 +1,3 @@
-import asyncio
 from faculty_crawlers.enums import Faculty
 from faculty_crawlers.base import FacultyCrawler
 from faculty_crawlers.CS.crawler import CSCrawler
@@ -12,9 +11,11 @@ class CoursePlannerCrawler:
       Faculty.CS: CSCrawler(),
     }
 
-  async def crawl_faculty(self, faculty: Faculty) -> None:
-    await self.crawlers[faculty].crawl()
+  def crawl_faculty(self, faculty: Faculty) -> None:
+    self.crawlers[faculty].crawl()
 
-  async def crawl_all(self) -> None:
-    tasks = [self.crawl_faculty(faculty) for faculty in Faculty]
-    await asyncio.gather(*tasks)
+  def crawl_all(self) -> None:
+    # tasks = [self.crawl_faculty(faculty) for faculty in Faculty]
+    # asyncio.run(asyncio.gather(*tasks))
+    for faculty in Faculty:
+      self.crawl_faculty(faculty)

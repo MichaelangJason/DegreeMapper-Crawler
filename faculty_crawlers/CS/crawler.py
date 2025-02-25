@@ -28,21 +28,23 @@ class CSCrawler(FacultyCrawler):
     def base_url(self) -> str:
         return 'www.cs.mcgill.ca'
 
-    async def crawl(self) -> None:
+    def crawl(self) -> None:
         # get all urls from the base url
         tqdm.write('Getting all urls from the base url...')
-        # urls = await self.get_all_urls()
-        urls = ['/docs/tutorials/linux/']
+        urls = self.get_all_urls()
         tqdm.write('Done getting all urls from the base url!')
 
         # for now we just delete it before crawling
         client.delete_collection(ChromaCollection.Faculty)
 
-        with tqdm(total=len(urls), desc='Fetching content for each url...') as pbar:
+        with tqdm(total=len(urls), 
+                  desc='Fetching content for each url...', 
+                  unit='url', 
+                  bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]') as pbar:
             # fetch page content for last page and display it
             for url in urls:
                 pbar.set_description(f"Fetching content for {url}")
-                content = await self.fetch_content(url)
+                content = self.fetch_content(url)
                 # print(content)
                 common_tag = list(content.keys())[0]
                 faculty = self.faculty_name # a metadata for the content
@@ -75,20 +77,22 @@ class CSCrawler(FacultyCrawler):
                         collection_name=ChromaCollection.Faculty,
                         ids=ids,
                         metadata=metadata,
-                        documents=documents
+                        documents=documents,
+                        batch_size=1
                     )
                 except Exception as e:
                     print(e)
                     print("metadata: ", metadata)
+                    print("content: ", content)
                     print("url: ", url)
                     print("documents: ", documents)
                     print("contents", json.dumps(content))
                     continue
                 pbar.update(1)
                 
-    async def fetch_content(self, endpoint: str) -> Dict[str, str]:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(urljoin(f'https://{self.base_url}', endpoint))
+    def fetch_content(self, endpoint: str) -> Dict[str, str]:
+        with httpx.Client() as client:
+            response = client.get(urljoin(f'https://{self.base_url}', endpoint))
             soup = BeautifulSoup(response.text, 'html.parser')
 
             main_content = soup.find_all('div', class_='panel')
@@ -142,14 +146,14 @@ class CSCrawler(FacultyCrawler):
             flattened_content.append(f'{title}\n{content}')
         return '\n'.join(flattened_content)
 
-    async def get_all_urls_from_url(self, target_url: str) -> Set[str]:
+    def get_all_urls_from_url(self, target_url: str) -> Set[str]:
         if not target_url.endswith('/'):
             target_url += '/'
 
         urls = []
         # get all urls from the base url
-        async with httpx.AsyncClient() as client:
-            response = await client.get(target_url)
+        with httpx.Client() as client:
+            response = client.get(target_url)
             soup = BeautifulSoup(response.text, 'html.parser')
 
             # skip header container if already visited
@@ -174,14 +178,14 @@ class CSCrawler(FacultyCrawler):
                             urls.append(normalized_href)
         return set(urls)
 
-    async def get_all_urls(self) -> Set[str]:
+    def get_all_urls(self) -> Set[str]:
         base_url = f'https://{self.base_url}'
         # add trailing slash if not present
         if not base_url.endswith('/'):
             base_url += '/'
 
         # get all urls from the base url
-        urls = set(await self.get_all_urls_from_url(base_url))
+        urls = set(self.get_all_urls_from_url(base_url))
         self.all_urls.update(urls)
         visited_endpoints: Set[str] = set()
 
@@ -192,7 +196,7 @@ class CSCrawler(FacultyCrawler):
             visited_endpoints.add(endpoint)
             target_url = urljoin(base_url, endpoint)
             # print(target_url)
-            res = await self.get_all_urls_from_url(target_url)
+            res = self.get_all_urls_from_url(target_url)
 
             urls.update(res)
             self.all_urls.update(res)
@@ -213,7 +217,8 @@ class CSCrawler(FacultyCrawler):
             '/people',
             '/courses',
             'tech_reports',
-            '/visitors/create'
+            '/visitors/create',
+            '/docs/remote/vpn/' # to be handled later
         ]
         # meaning its a relative url with same base url
         return not parsed.scheme \
