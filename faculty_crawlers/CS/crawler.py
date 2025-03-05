@@ -35,7 +35,10 @@ class CSCrawler(FacultyCrawler):
         tqdm.write('Done getting all urls from the base url!')
 
         # for now we just delete it before crawling
-        client.delete_collection(ChromaCollection.Faculty)
+        try:
+            client.delete_collection(ChromaCollection.Faculty)
+        except Exception as _:
+            pass
 
         with tqdm(total=len(urls), 
                   desc='Fetching content for each url...', 
@@ -46,17 +49,18 @@ class CSCrawler(FacultyCrawler):
                 pbar.set_description(f"Fetching content for {url}")
                 content = self.fetch_content(url)
                 # print(content)
-                common_tag = list(content.keys())[0]
+                common_tag = list(content.keys())[0] # usually the header of the content
                 faculty = self.faculty_name # a metadata for the content
 
                 # chunks, filter out empty strings 
                 documents: List[str] = []
                 tags: List[str] = []
-                for i, (title, value) in enumerate(content.items()):
+                for _, (title, value) in enumerate(content.items()):
                     if value == '':
                         continue
-                    tags.append((common_tag + ',' if i != 0 else '') + title)
-                    documents.append(json.dumps({ "title": title, "content": value }))
+                    chunks = self.chunk_content(value)
+                    tags.extend([(common_tag + ',' if i != 0 else '') + title for i in range(len(chunks))])
+                    documents.extend([json.dumps({ "title": title + "-" + str(i), "content": chunk }) for i, chunk in enumerate(chunks)])
 
                 metadata: List[Mapping[str, str | int | float | bool]] = [
                     {
@@ -123,7 +127,7 @@ class CSCrawler(FacultyCrawler):
                             if current is None:
                                 break
                             if isinstance(current, (Tag, str)) and str(current).strip():
-                                content.append(clean_text(current.get_text().strip() if isinstance(current, Tag) else str(current).strip()))
+                                content.append(current.get_text().strip() if isinstance(current, Tag) else str(current).strip())
                             current = current.next_sibling
 
                         # print(f"title: {title}")
@@ -140,11 +144,12 @@ class CSCrawler(FacultyCrawler):
             # print(f"content_dict: {content_dict}")
         return content_dict
 
-    def flatten_content(self, content_dict: Dict[str, str]) -> str:
-        flattened_content = []
-        for title, content in content_dict.items():
-            flattened_content.append(f'{title}\n{content}')
-        return '\n'.join(flattened_content)
+    def chunk_content(self, content: str, size: int=500, overlap: int=100) -> List[str]:
+        words = content.split(" ")
+        chunks = []
+        for i in range(0, len(words), size - overlap):
+            chunks.append(" ".join(words[i:i+size]))
+        return chunks
 
     def get_all_urls_from_url(self, target_url: str) -> Set[str]:
         if not target_url.endswith('/'):

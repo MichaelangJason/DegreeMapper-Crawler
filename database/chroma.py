@@ -4,6 +4,10 @@ from pipelines.embedding_encoder import encode_text
 from typing import List, Mapping
 from database.enums import ChromaCollection
 from tqdm import tqdm
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 class BGEEmbeddingFunction(EmbeddingFunction[Embeddable]):
     def __call__(self, text: List[str]) -> Embeddings: # type: ignore
@@ -11,28 +15,24 @@ class BGEEmbeddingFunction(EmbeddingFunction[Embeddable]):
 
 class ChromaClient:
     def __init__(self) -> None:
-        self.client = HttpClient(host='10.0.1.2', port=8000)
+        self.client = HttpClient(host='localhost', port=8000)
         self.client.heartbeat()
+
+    def heartbeat(self) -> int:
+        return self.client.heartbeat()
 
     def get_collection(self, name: ChromaCollection) -> Collection:
         self.client.heartbeat()
-
-        try:
-            collection = self.client.get_collection(
-                name=name.value,
-                embedding_function=BGEEmbeddingFunction()
-            )
-        except Exception as _:
-            collection = self.client.create_collection(
-                name=name.value,
-                embedding_function=BGEEmbeddingFunction(),
-                # refer to https://docs.trychroma.com/docs/collections/configure
-                metadata={
+        
+        collection = self.client.get_or_create_collection(
+            name=name.value,
+            embedding_function=BGEEmbeddingFunction(),
+            metadata={
                     "hnsw:space": "ip",
                     "hnsw:search_ef": 100,
                     "hnsw:construction_ef": 100,
                 }
-            )
+        )
         return collection
 
     
@@ -103,4 +103,9 @@ class ChromaClient:
             raise ValueError(f"Collection {collection_name} not found")
         collection.delete(ids=ids)
 
-client = ChromaClient()
+if os.getenv("QUERY_ONLY_LOCAL") == "1":
+    client = None
+    print("embedding only")
+else:
+    client = ChromaClient()
+    print("Using local ChromaDB")
