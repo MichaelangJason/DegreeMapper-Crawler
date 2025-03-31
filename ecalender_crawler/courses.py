@@ -1,6 +1,6 @@
 from pymongo import MongoClient, UpdateOne
 from pymongo.operations import SearchIndexModel
-from pipelines.embedding_encoder import encode_text
+from database.embbedings import encode_text
 from bson.binary import Binary, BinaryVectorDtype
 from dotenv import load_dotenv
 import os

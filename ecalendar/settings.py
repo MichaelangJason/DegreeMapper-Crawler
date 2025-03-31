@@ -7,10 +7,10 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
-BOT_NAME = "ecalender"
+BOT_NAME = "ecalendar"
 
-SPIDER_MODULES = ["ecalender.spiders"]
-NEWSPIDER_MODULE = "ecalender.spiders"
+SPIDER_MODULES = ["ecalendar.spiders"]
+NEWSPIDER_MODULE = "ecalendar.spiders"
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
@@ -63,7 +63,8 @@ DOWNLOAD_DELAY = 0.5
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-   "ecalender.pipelines.MongoDBPipeline": 300,
+   # "ecalender.pipelines.MongoDBProgramPipeline": 300,
+   "ecalendar.pipelines.MongoDBFacultyPipeline": 300
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)

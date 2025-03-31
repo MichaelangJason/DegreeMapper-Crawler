@@ -28,7 +28,7 @@ class ChromaClient:
             name=name.value,
             embedding_function=BGEEmbeddingFunction(),
             metadata={
-                    "hnsw:space": "ip",
+                    "hnsw:space": "cosine",
                     "hnsw:search_ef": 100,
                     "hnsw:construction_ef": 100,
                 }

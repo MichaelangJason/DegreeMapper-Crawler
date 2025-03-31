@@ -67,7 +67,7 @@ class ProgramsSpider(Spider):
         urls = [program["url"] for program in collection.find()]
         # self.log(f"Found {len(urls)} programs")
         
-        for url in ["https://www.mcgill.ca/study/2024-2025/faculties/law/undergraduate/programs/bachelor-civil-law-bcl-and-juris-doctor-jd-law"]:
+        for url in []:
             yield Request(url, callback=self.parse)
 
     def parse(self, response: Response, **kwargs: Any) -> Any:

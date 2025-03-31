@@ -2,6 +2,7 @@ from faculty_crawlers.crawler import CoursePlannerCrawler
 from database.chroma import client
 from ecalender_crawler.courses import update_course_embeddings, update_courses_atlas_index
 from ecalender_crawler.programs import update_program_embeddings
+
 def main() -> None:
     # crawler = CoursePlannerCrawler()
     try:
