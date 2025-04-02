@@ -1,6 +1,8 @@
 from sentence_transformers import SentenceTransformer
 from torch import Tensor
 from torch.cuda import is_available
+from bson.binary import Binary
+from bson.binary import BinaryVectorDtype
 
 model = SentenceTransformer(
             'BAAI/bge-m3',
@@ -17,3 +19,6 @@ def encode_text(text: str, precision: str = "float32") -> Tensor:
             truncation=True,
             precision=precision
         )
+
+def generate_bson_vector(vector, vector_dtype=BinaryVectorDtype.FLOAT32):
+    return Binary.from_vector(vector, vector_dtype)

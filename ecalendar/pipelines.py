@@ -15,7 +15,7 @@ load_dotenv()
 from typing import List, Callable, Mapping
 import json
 from urllib.parse import urljoin
-from database.embbedings import encode_text
+from database.embbedings import encode_text, generate_bson_vector
 
 class MongoDBProgramPipeline:
     collection_name_map = {
@@ -63,6 +63,7 @@ class MongoDBProgramPipeline:
 
 
 class MongoDBFacultyPipeline:
+
     collection_name_map = {
         "programs_meta": "programs",
         "programs": "programs",
@@ -101,7 +102,7 @@ class MongoDBFacultyPipeline:
         else:
             self.collection = self.db[self.collection_name]
 
-        self.encode: Callable[[str], List[float]] = lambda x: encode_text(x).tolist()
+        self.encode: Callable[[str], List[float]] = lambda x: encode_text(x).squeeze().tolist()
         self.progress = tqdm(colour="green")
 
     def close_spider(self, spider: Spider):
@@ -140,7 +141,7 @@ class MongoDBFacultyPipeline:
                 "tags": tag,
                 "url": urljoin(self.base_url, url),
                 "content": documents[idx],
-                "embeddings": self.encode(documents[idx])
+                "embeddings": generate_bson_vector(self.encode(documents[idx]))
             }
             for idx, tag in enumerate(tags)
         ]
@@ -163,3 +164,45 @@ class MongoDBFacultyPipeline:
         for i in range(0, len(words), size - overlap):
             chunks.append(" ".join(words[i:i+size]))
         return chunks
+
+
+class MongoDBCoursePipeline:
+    
+    def open_spider(self, spider: Spider):
+        self.client = MongoClient(os.getenv("MONGODB_URI"))
+        self.db = self.client[os.getenv("MONGODB_DATABASE_NAME")]
+        self.collection_name = "courses_" + os.getenv("YEAR").replace("-", "_")
+        self.mode = "update"
+        self.id_field = "id"
+        self.domain = "www.cs.mcgill.ca"
+        self.base_url = f"https://{self.domain}"
+
+        self.collection = self.db[self.collection_name]
+
+        self.progress = tqdm(colour="green", total=self.collection.count_documents({}))
+        self.level_map = {
+            "graduate, undergraduate": 0,
+            "undergraduate": 1,
+            "graduate": 2,
+        }
+
+    def process_item(self, item: dict, spider: Spider):
+        # print(item)
+
+        if not (id := item.get("id", None)) or not (level := item.get("level", None)):
+            raise ValueError("Courses must have id")
+        
+        id = id.replace("-", "")
+        level = self.level_map[level.lower()]
+
+        # if (level == 0): print(id, level)
+
+        result = self.collection.update_one(
+            { "id": id },
+            { "$set": { "level": level } }
+        )
+
+        if result.modified_count == 1: self.progress.update(1)
+        else: print(id, level)
+
+        return item

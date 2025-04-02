@@ -6,6 +6,7 @@
 #     https://docs.scrapy.org/en/latest/topics/settings.html
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+from .pipelines import MongoDBCoursePipeline
 
 BOT_NAME = "ecalendar"
 
@@ -64,7 +65,8 @@ DOWNLOAD_DELAY = 0.5
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
    # "ecalender.pipelines.MongoDBProgramPipeline": 300,
-   "ecalendar.pipelines.MongoDBFacultyPipeline": 300
+   # "ecalendar.pipelines.MongoDBFacultyPipeline": 300,
+   MongoDBCoursePipeline: 300
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
